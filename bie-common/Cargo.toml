@@ -1,0 +1,9 @@
+[package]
+name = "bie-common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+minicbor-serde = {version = "0.3.1", features = ["alloc"]}
+serde = {version="1.0.210", features = ["derive"]}
+ring = "0.17.8"
