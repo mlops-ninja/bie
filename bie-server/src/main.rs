@@ -37,7 +37,7 @@ async fn main() {
 
     // Route to push actual file
     let upload_route = warp::path!("upload" / String)
-        .and(warp::multipart::form().max_length(1_073_741_824))
+        .and(warp::multipart::form().max_length(settings.max_file_size))
         .and(with_connections(connections.clone()))
         .and_then(handle_upload);
 

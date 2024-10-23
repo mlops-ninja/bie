@@ -5,10 +5,19 @@ pub struct Settings {
     /// Default: 8080
     #[serde(default = "default_port")]
     pub port: u16,
+
+    /// The maximum file size to accept
+    /// Default: 100MB
+    #[serde(default = "default_max_file_size")]
+    pub max_file_size: u64,
 }
 
 fn default_port() -> u16 {
-    8080
+    3000
+}
+
+fn default_max_file_size() -> u64 {
+    10 * 1024 * 1024
 }
 
 impl Settings {
