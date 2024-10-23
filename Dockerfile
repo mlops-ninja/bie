@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1.76-slim-bullseye as builder
+FROM rust:1.82-slim-bullseye as builder
 
 WORKDIR /usr/src/bie-server
 
