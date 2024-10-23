@@ -9,8 +9,7 @@ use warp::ws::{WebSocket, Ws};
 use warp::Buf;
 use warp::Filter;
 
-use futures::SinkExt;
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
 
 use bie_common::{generate_secure_random_string, BieProtocol};
 
@@ -85,9 +84,15 @@ async fn handle_connection(ws: WebSocket, connections: Connections) {
         }
     }
 
-    let debug_token = token.clone();
-    tokio::task::spawn(async move {
-        trace!("Starting loop for token: {}", debug_token);
+    let rcv_token = token.clone();
+    let snd_token = token.clone();
+
+    // Spawn cycle to handle incoming messages
+    let ping_sender = client_sender.clone();
+
+    // Spawn a task to handle the messages coming from software into client
+    let send_handler = tokio::task::spawn(async move {
+        trace!("Starting loop for token: {}", snd_token);
         while let Some(Ok(msg)) = client_rcv.recv().await {
             trace!("Received message: {:?}", msg);
             match msg {
@@ -105,8 +110,21 @@ async fn handle_connection(ws: WebSocket, connections: Connections) {
                     trace!("Received end of file");
                     let cbor: Vec<u8> = BieProtocol::EndOfFile.into();
                     client_ws_sender.send(Message::binary(cbor)).await.unwrap();
+                    client_ws_sender.send(Message::close()).await.unwrap();
                     client_rcv.close();
                     client_ws_sender.close().await.unwrap();
+                    return;
+                }
+                BieProtocol::Ping => {
+                    trace!("Received ping");
+                    client_ws_sender.send(Message::ping(b"")).await.unwrap();
+                }
+                BieProtocol::Pong => {}
+                BieProtocol::Close => {
+                    trace!("Received close");
+                    client_rcv.close();
+                    client_ws_sender.close().await.unwrap();
+                    return;
                 }
             };
         }
@@ -122,10 +140,38 @@ async fn handle_connection(ws: WebSocket, connections: Connections) {
         // Ensuring that write lock is released with out of scope
     }
 
-    // Wait for the connection to close
-    while let Some(_) = client_ws_rcv.next().await {}
+    // No need to join - it will work as long as the connection is open
+    tokio::task::spawn(async move {
+        // Wait for the connection to close
+        trace!("Starting incoming messages loop for token: {}", rcv_token);
+        while let Some(msg) = client_ws_rcv.next().await {
+            match msg {
+                Ok(msg) => {
+                    if msg.is_ping() {
+                        trace!("Received ping");
+                        let _ = ping_sender.send(Ok(BieProtocol::Pong)).map_err(|e| {
+                            error!("Error sending pong: {}", e);
+                        });
+                    } else {
+                        trace!("Received message: {:?}", msg);
+                        error!("Received unexpected message: {:?}", msg);
+                    }
+                }
+                Err(e) => {
+                    error!("Error receiving message: {}", e);
+                    break;
+                }
+            }
+        }
+    });
+
+    // Joining the handler
+    let _ = send_handler.await.map_err(|e| {
+        error!("Error in send_handler: {:?}", e);
+    });
 
     // Remove the connection when closed
+    info!("Connection closed for token: {}", token);
     connections.write().await.remove(&token);
 }
 
@@ -171,8 +217,6 @@ async fn handle_upload(
                 error!("Error sending end of file: {}", e);
                 return Ok(warp::http::status::StatusCode::INTERNAL_SERVER_ERROR);
             }
-
-
         }
 
         return Ok(warp::http::status::StatusCode::ACCEPTED);

@@ -2,3 +2,20 @@
 
 resolver = "2"
 members = ["bie", "bie-common", "bie-server"]
+
+
+[workspace.dependencies]
+anyhow = "1.0.91"
+tokio = { version = "1.41.0", features = ["macros", "sync", "rt-multi-thread"] }
+serde = { version = "1.0.213", features = ["derive"] }
+log = "0.4.22"
+
+
+[profile.release]
+codegen-units = 1
+opt-level = 3
+panic = "abort"
+debug = false
+lto = "fat"
+strip = "symbols"
+

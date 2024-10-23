@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum BieProtocol {
+    Ping,
+    Pong,
+    Close,
     Token(String),
     FileChunk(Vec<u8>),
     EndOfFile,
