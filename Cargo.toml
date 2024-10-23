@@ -9,6 +9,7 @@ anyhow = "1.0.91"
 tokio = { version = "1.41.0", features = ["macros", "sync", "rt-multi-thread"] }
 serde = { version = "1.0.213", features = ["derive"] }
 log = "0.4.22"
+futures = { version = "0.3.31", default-features = false }
 
 
 [profile.release]
@@ -18,4 +19,3 @@ panic = "abort"
 debug = false
 lto = "fat"
 strip = "symbols"
-

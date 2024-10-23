@@ -8,13 +8,14 @@ edition = "2021"
 clap = { version = "4.5.17", features = ["derive"] }
 xdg = { version = "2.5.2", features = ["serde"] }
 toml = "0.8.19"
-tokio-tungstenite = "0.24.0"
+tokio-tungstenite = { version = "0.24.0", features = ["native-tls"] }
 
 # Workspace dependencies
-anyhow = {workspace = true}
-tokio = {workspace = true}
-serde = {workspace = true}
-log = {workspace = true}
+anyhow = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+log = { workspace = true }
+futures = { workspace = true }
 
 # Cross-project dependencies
 bie-common = { path = "../bie-common" }
@@ -22,4 +23,5 @@ config = "0.14.0"
 
 
 env_logger = "0.11.5"
-
+url = "2.5.2"
+tempfile = "3.13.0"

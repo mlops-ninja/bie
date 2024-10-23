@@ -13,7 +13,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            bastion_server_url: "http://localhost:8080".to_string(),
+            bastion_server_url: "https://bie.mlops.ninja".to_string(),
         }
     }
 }
@@ -22,6 +22,7 @@ impl Settings {
     pub fn load() -> Result<Self> {
         let xdg_dirs = xdg::BaseDirectories::with_prefix("bie")?;
         let config_path = xdg_dirs.place_config_file("config.toml")?;
+        println!("Config path: {:?}", config_path);
 
         if !config_path.exists() {
             let default_settings = Settings::default();

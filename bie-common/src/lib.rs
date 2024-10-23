@@ -16,6 +16,12 @@ impl From<BieProtocol> for Vec<u8> {
     }
 }
 
+impl From<&[u8]> for BieProtocol {
+    fn from(data: &[u8]) -> BieProtocol {
+        minicbor_serde::from_slice(data).unwrap()
+    }
+}
+
 pub fn generate_secure_random_string(length: usize) -> String {
     let rng = ring::rand::SystemRandom::new();
     let mut random_bytes = vec![0u8; length];

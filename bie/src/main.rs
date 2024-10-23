@@ -2,11 +2,14 @@ mod settings;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
+use tempfile::NamedTempFile;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
+use url::Url;
+
+use futures::{SinkExt, StreamExt};
 
 #[derive(Parser)]
 #[command(name = "bie")]
@@ -29,10 +32,8 @@ enum Commands {
     Config,
 }
 
-
-
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), anyhow::Error> {
     // Parse command line arguments
     let cli = Cli::parse();
 
@@ -40,54 +41,95 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Config => {
             let settings = settings::Settings::load()?;
             println!("{:?}", settings);
+            Ok(())
         }
         Commands::Get { file_name } => {
-            // // Generate the link for curl
-            // let url = format!("http://your-server/upload/{}", file_name);
-            // println!("Downloading file from: {}", url);
+            let settings = settings::Settings::load()?;
 
-            // // Use curl to download the file
-            // let status = std::process::Command::new("curl")
-            //     .arg("-o")
-            //     .arg(&file_name)
-            //     .arg(&url)
-            //     .status()?;
+            // First of all - we need to connect to the server via websocket and request a token
+            let url = create_websocket_url(&settings.bastion_server_url)?;
+            let ws_url = url.to_string();
+            let (ws_stream, _) = connect_async(&ws_url).await?;
 
-            // if !status.success() {
-            //     eprintln!("Failed to download file.");
-            //     return Ok(());
-            // }
+            let (mut write, mut read) = ws_stream.split();
 
-            // // Connect to the WebSocket server
-            // let (ws_stream, _) = connect_async("ws://your-server/wait_file").await?;
-            // println!("WebSocket connected!");
+            // The first message from the server is a token
+            let token_message = read.next().await;
+            let token_message =
+                token_message.ok_or_else(|| anyhow::anyhow!("No token message received"))?;
+            let token_message = token_message?;
 
-            // let (mut write, mut read) = ws_stream.split();
+            let token = match token_message {
+                Message::Text(token) => token,
+                _ => {
+                    return Err(anyhow::anyhow!("Invalid token message"));
+                }
+            };
 
-            // // Send a token request (modify as needed)
-            // write.send(Message::Text("token_request".into())).await?;
+            // Generate the link for curl
+            let url = format!("{}/upload/{}", settings.bastion_server_url, token);
+            println!("In order to send a file, use this snippet:\n");
+            println!("echo <your-file-name> | xargs -I{{}} curl -v -X POST -F \"file=@{{}}\" {}\n", url);
+            println!("<type echo then <tab> to get file name autocompletion, then copy snippet from \"|\", or Ctrl-C to exit>");
 
-            // // Open a file to write the received data
-            // let mut output_file = File::create(&file_name)?;
+            // Here we start a loop to write all incoming content into a file
 
-            // // Receive data from WebSocket
-            // while let Some(msg) = read.next().await {
-            //     match msg? {
-            //         Message::Binary(data) => {
-            //             output_file.write_all(&data)?;
-            //             println!("Received {} bytes of data.", data.len());
-            //         }
-            //         Message::Close(_) => {
-            //             println!("WebSocket connection closed.");
-            //             break;
-            //         }
-            //         _ => {}
-            //     }
-            // }
+            // First - create temp file in tmp directory
+            let mut temp_file = NamedTempFile::new()?;
 
-            // println!("File download complete.");
+            // Now - start receiving loop for websocket messages
+            loop {
+                let message = read.next().await;
+                let message = message.ok_or_else(|| anyhow::anyhow!("No message received"))?;
+                let message = message?;
+
+                match message {
+                    Message::Binary(data) => {
+                        // Here we should parse CBOR encoded message
+                        match bie_common::BieProtocol::from(&data[..]) {
+                            bie_common::BieProtocol::FileChunk(chunk) => {
+                                temp_file.write_all(&chunk)?;
+                            }
+                            bie_common::BieProtocol::EndOfFile => {
+                                break;
+                            }
+                            _ => {
+                                return Err(anyhow::anyhow!("Invalid message"));
+                            }
+                        }
+                    }
+                    Message::Close(_) => {
+                        return Ok(());
+                    }
+                    _ => {
+                        return Err(anyhow::anyhow!("Invalid message"));
+                    }
+                }
+            }
+            // Here we need to flush the tempfile and copy it to right place
+            temp_file.flush()?;
+            temp_file.persist(file_name.as_path())?;
+
+            write.close().await?;
+
+            Ok(())
         }
     }
+}
 
-    Ok(())
+fn create_websocket_url(server_url: &str) -> Result<Url, anyhow::Error> {
+    let mut url = Url::parse(server_url)?;
+    // Here the scheme is valid
+    if url.scheme() == "http" {
+        url.set_scheme("ws")
+            .map_err(|_| anyhow::anyhow!("Invalid scheme"))?;
+    } else if url.scheme() == "https" {
+        url.set_scheme("wss")
+            .map_err(|_| anyhow::anyhow!("Invalid scheme"))?;
+    } else {
+        return Err(anyhow::anyhow!("Invalid scheme"));
+    }
+
+    url.set_path("/wait_file");
+    Ok(url)
 }

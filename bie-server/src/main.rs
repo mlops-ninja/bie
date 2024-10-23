@@ -87,9 +87,6 @@ async fn handle_connection(ws: WebSocket, connections: Connections) {
     let rcv_token = token.clone();
     let snd_token = token.clone();
 
-    // Spawn cycle to handle incoming messages
-    let ping_sender = client_sender.clone();
-
     // Spawn a task to handle the messages coming from software into client
     let send_handler = tokio::task::spawn(async move {
         trace!("Starting loop for token: {}", snd_token);
@@ -147,15 +144,12 @@ async fn handle_connection(ws: WebSocket, connections: Connections) {
         while let Some(msg) = client_ws_rcv.next().await {
             match msg {
                 Ok(msg) => {
-                    if msg.is_ping() {
-                        trace!("Received ping");
-                        let _ = ping_sender.send(Ok(BieProtocol::Pong)).map_err(|e| {
-                            error!("Error sending pong: {}", e);
-                        });
-                    } else {
-                        trace!("Received message: {:?}", msg);
-                        error!("Received unexpected message: {:?}", msg);
+                    if msg.is_close() {
+                        trace!("Received close message");
+                        break;
                     }
+                    trace!("Received message: {:?}", msg);
+                    error!("Received unexpected message: {:?}", msg);
                 }
                 Err(e) => {
                     error!("Error receiving message: {}", e);

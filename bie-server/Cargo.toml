@@ -7,7 +7,6 @@ edition = "2021"
 # Solo server dependencies
 warp = "0.3.7"
 tokio-stream = "0.1.16"
-futures = { version = "0.3.30", default-features = false }
 config = "0.14.0"
 env_logger = "0.11.5"
 
@@ -16,6 +15,7 @@ anyhow = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 log = { workspace = true }
+futures = { workspace = true }
 
 # Cross-project dependencies
 bie-common = { path = "../bie-common" }
