@@ -109,6 +109,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // Here we need to flush the tempfile and copy it to right place
             temp_file.flush()?;
             temp_file.persist(file_name.as_path())?;
+            println!("File saved to {}", file_name.display());
 
             write.close().await?;
 

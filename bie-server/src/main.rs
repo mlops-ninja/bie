@@ -33,7 +33,9 @@ async fn main() {
     let connections: Connections = Arc::new(RwLock::new(HashMap::new()));
 
     // Health check route
-    let health_route = warp::path!("health").and_then(health_handler);
+    let health_route = warp::path!("health")
+        .and(with_connections(connections.clone()))
+        .and_then(handle_health);
 
     // Route to push actual file
     let upload_route = warp::path!("upload" / String)
@@ -148,16 +150,16 @@ async fn handle_connection(ws: WebSocket, connections: Connections) {
                 Ok(msg) => {
                     if msg.is_close() {
                         trace!("Received close message");
-                        client_sender_for_incoming_loop.send(Ok(BieProtocol::Close));
+                        let _ = client_sender_for_incoming_loop.send(Ok(BieProtocol::Close));
                         break;
                     }
                     error!("Received unexpected message: {:?}", msg);
-                    client_sender_for_incoming_loop.send(Ok(BieProtocol::Close));
+                    let _ = client_sender_for_incoming_loop.send(Ok(BieProtocol::Close));
                     break;
                 }
                 Err(e) => {
                     error!("Error receiving message: {}", e);
-                    client_sender_for_incoming_loop.send(Ok(BieProtocol::Close));
+                    let _ = client_sender_for_incoming_loop.send(Ok(BieProtocol::Close));
                     break;
                 }
             }
@@ -223,6 +225,17 @@ async fn handle_upload(
     Ok(warp::http::status::StatusCode::NOT_FOUND)
 }
 
-async fn health_handler() -> Result<impl warp::Reply> {
-    Ok(warp::http::StatusCode::OK)
+#[derive(serde::Serialize)]
+struct HealthResponse {
+    connections: usize,
+}
+
+async fn handle_health(connections: Connections) -> Result<impl warp::Reply> {
+    // Return ok and json with number of connections
+    let connections_size = connections.read().await.len();
+    info!("Health check - connections: {}", connections_size);
+
+    Ok(warp::reply::json(&HealthResponse {
+        connections: connections_size,
+    }))
 }
