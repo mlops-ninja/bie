@@ -127,16 +127,18 @@ async fn handle_connection(ws: WebSocket, connections: Connections) {
         }
     });
 
+    let client_sender_for_connections = client_sender.clone();
     {
         // Store the connection associated with the token
         connections
             .write()
             .await
-            .insert(token.clone(), client_sender);
+            .insert(token.clone(), client_sender_for_connections);
 
         // Ensuring that write lock is released with out of scope
     }
 
+    let client_sender_for_incoming_loop = client_sender.clone();
     // No need to join - it will work as long as the connection is open
     tokio::task::spawn(async move {
         // Wait for the connection to close
@@ -146,13 +148,16 @@ async fn handle_connection(ws: WebSocket, connections: Connections) {
                 Ok(msg) => {
                     if msg.is_close() {
                         trace!("Received close message");
+                        client_sender_for_incoming_loop.send(Ok(BieProtocol::Close));
                         break;
                     }
-                    trace!("Received message: {:?}", msg);
                     error!("Received unexpected message: {:?}", msg);
+                    client_sender_for_incoming_loop.send(Ok(BieProtocol::Close));
+                    break;
                 }
                 Err(e) => {
                     error!("Error receiving message: {}", e);
+                    client_sender_for_incoming_loop.send(Ok(BieProtocol::Close));
                     break;
                 }
             }
