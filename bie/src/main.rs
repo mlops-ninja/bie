@@ -1,7 +1,9 @@
 mod settings;
+mod protocol;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use protocol::BieProtocol;
 use std::io::Write;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
@@ -86,11 +88,11 @@ async fn main() -> Result<(), anyhow::Error> {
                 match message {
                     Message::Binary(data) => {
                         // Here we should parse CBOR encoded message
-                        match bie_common::BieProtocol::from(&data[..]) {
-                            bie_common::BieProtocol::FileChunk(chunk) => {
+                        match BieProtocol::from(&data[..]) {
+                            BieProtocol::FileChunk(chunk) => {
                                 temp_file.write_all(&chunk)?;
                             }
-                            bie_common::BieProtocol::EndOfFile => {
+                            BieProtocol::EndOfFile => {
                                 break;
                             }
                             _ => {

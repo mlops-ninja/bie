@@ -124,12 +124,13 @@ name = "bie"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bie-common",
  "clap",
  "config",
  "env_logger",
  "futures",
  "log",
+ "minicbor-serde",
+ "ring",
  "serde",
  "tempfile",
  "tokio",
@@ -140,24 +141,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "bie-common"
-version = "0.1.0"
-dependencies = [
- "minicbor-serde",
- "ring",
- "serde",
-]
-
-[[package]]
 name = "bie-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bie-common",
  "config",
  "env_logger",
  "futures",
  "log",
+ "minicbor-serde",
+ "ring",
  "serde",
  "tokio",
  "tokio-stream",
@@ -802,9 +795,9 @@ dependencies = [
 
 [[package]]
 name = "minicbor-serde"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2db2f09b7cc91ba3c142e66659538c8a9fe7fe65b4cec50c1d141243c8d2430"
+checksum = "becf18ac384ecf6f53b2db3b1549eebff664c67ecf259ae99be5912193291686"
 dependencies = [
  "minicbor",
  "serde",

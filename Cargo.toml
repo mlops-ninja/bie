@@ -1,7 +1,7 @@
 [workspace]
 
 resolver = "2"
-members = ["bie", "bie-common", "bie-server"]
+members = ["bie", "bie-server"]
 
 
 [workspace.dependencies]
@@ -10,6 +10,8 @@ tokio = { version = "1.41.0", features = ["macros", "sync", "rt-multi-thread"] }
 serde = { version = "1.0.213", features = ["derive"] }
 log = "0.4.22"
 futures = { version = "0.3.31", default-features = false }
+minicbor-serde = { version = "0.3.2", features = ["alloc"] }
+ring = "0.17.8"
 
 
 [profile.release]

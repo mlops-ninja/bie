@@ -16,9 +16,9 @@ tokio = { workspace = true }
 serde = { workspace = true }
 log = { workspace = true }
 futures = { workspace = true }
+minicbor-serde = { workspace = true }
+ring = { workspace = true }
 
-# Cross-project dependencies
-bie-common = { path = "../bie-common" }
 config = "0.14.0"
 
 

@@ -1,5 +1,8 @@
-use log::{debug, error, info, trace};
+mod protocol;
 mod settings;
+
+use log::{debug, error, info, trace};
+use protocol::{generate_secure_random_string, BieProtocol};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -10,8 +13,6 @@ use warp::Buf;
 use warp::Filter;
 
 use futures::{SinkExt, StreamExt};
-
-use bie_common::{generate_secure_random_string, BieProtocol};
 
 type Result<T> = std::result::Result<T, warp::reject::Rejection>;
 
