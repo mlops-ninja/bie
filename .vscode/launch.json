@@ -28,7 +28,8 @@
                 "get",
                 "file.txt"
             ],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
         }
     ]
 }

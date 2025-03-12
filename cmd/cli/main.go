@@ -70,15 +70,16 @@ func (c *GetCmd) Run() error {
 		bieDomain,
 		cfg.Port,
 	)
-	p := tea.NewProgram(Model{FilePath: targetFile, Command: curlCmd, FileSize: 0, Uploaded: 0})
+	p := tea.NewProgram(Model{FilePath: targetFile, Command: curlCmd, FileSize: 0, Uploaded: 0}, tea.WithAltScreen())
 
-	// go func() {
-	// 	// Starting TUI ins separate goroutine
-	// 	if err := p.Start(); err != nil {
-	// 		log.Fatalf("Error running TUI: %v", err)
-	// 	}
-	// }()
-	log.Printf("Run the following command to upload the file:\n%s", curlCmd)
+	go func() {
+		// Starting TUI ins separate goroutine
+		if _, err := p.Run(); err != nil {
+			log.Fatalf("Error running TUI: %v", err)
+		}
+		os.Exit(0)
+	}()
+	// log.Printf("Run the following command to upload the file:\n%s", curlCmd)
 
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
@@ -110,7 +111,6 @@ func (c *GetCmd) Run() error {
 		}
 		defer out.Close()
 		io.Copy(out, file)
-		fmt.Println("File saved. Exiting.")
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "File %s successfully transfered\n", targetFile)
@@ -123,12 +123,7 @@ func (c *GetCmd) Run() error {
 	}
 
 	// p.Send(struct{}{})
-	fmt.Println("File uploaded. Exiting.", p)
-
-	// if err := p.Start(); err != nil {
-	// 	return fmt.Errorf("Error running TUI: %v", err)
-	// }
-
+	p.Quit()
 	return nil
 }
 
