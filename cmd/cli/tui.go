@@ -1,8 +1,6 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -62,21 +60,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	header := lipgloss.NewStyle().
-		Align(lipgloss.Center).
-		Width(m.width).
-		Border(lipgloss.NormalBorder(), false, false, true, false).
-		Render("BIE")
+	// header := lipgloss.NewStyle().
+	// 	Align(lipgloss.Center).
+	// 	Width(m.width).
+	// 	Border(lipgloss.NormalBorder(), false, false, true, false).
+	// 	Render("BIE")
 
-	footer := statusBarStyle.Width(m.width).Render("Press 'q' or 'ctrl+c' to exit | Press 'c' to show command for CURL")
+	// footer := statusBarStyle.Width(m.width).Render("Press 'q' or 'ctrl+c' to exit | Press 'c' to show command for CURL")
 
-	pad := strings.Repeat(" ", padding)
+	// pad := strings.Repeat(" ", padding)
 	progressMdl := progress.New()
 	progressMdl.Width = m.progressWidth
 	progressMdl.SetPercent(float64(m.Uploaded) / float64(m.FileSize))
-	progress := pad + progressMdl.View() + "\n"
+	// progress := pad + progressMdl.View() + "\n"
 
-	content := lipgloss.NewStyle().Height(m.height - lipgloss.Height(header) - lipgloss.Height(footer) - lipgloss.Height(progress)).Render("\n\nIn order to upload a file into " + m.FilePath + " run the following command:\n\n\n\n" + m.Command)
+	// content := lipgloss.NewStyle().Height(m.height - lipgloss.Height(header) - lipgloss.Height(footer) - lipgloss.Height(progress)).Render("\n\nIn order to upload a file into " + m.FilePath + " run the following command:\n\n\n\n" + m.Command)
+	content := "\n\nIn order to upload a file into " + m.FilePath + " run the following command:\n" + m.Command
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, content, progress, footer)
+	return content
+
+	// return header + "\n" + content + "\n" + progress + "\n" + footer
 }

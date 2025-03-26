@@ -5,8 +5,15 @@ echo README.md | xargs -I{} curl -v -X POST -F "file=@{}" https://bie.mlops.ninj
 
 
 
+
+
 # Security
 
+
+
+## Local development environment 
+
+1. Use [mkcert](https://github.com/FiloSottile/mkcert) to generate certificates for `bie.test` and `*.bie.test`:
 
 
 

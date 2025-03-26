@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/base32"
 	"errors"
 	"fmt"
@@ -18,8 +19,10 @@ import (
 
 	"bie/pkg/bielog"
 	"bie/pkg/biewire"
+	"bie/pkg/certs"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/xtaci/smux"
 )
 
 // Relay server settings
@@ -33,7 +36,12 @@ type Config struct {
 	SenderPort    int    `env:"BIE_SENDER_PORT" envDefault:"443"`
 	ReceiverPort  int    `env:"BIE_RECEIVER_PORT" envDefault:"5443"`
 	Domain        string `env:"BIE_DOMAIN"`
-	ShardID       string `env:"SHARD_ID" envDefault:"01"`
+	ShardID       string `env:"BIE_SHARD_ID" envDefault:"01"`
+	Email         string `env:"BIE_EMAIL" envDefault:"admin@mlops.ninja"`
+	// Certs
+	// Certificate paths
+	CertFile string `env:"BIE_CERT_FILE" envDefault:"/etc/letsencrypt/live/bie.mlops.ninja/fullchain.pem"`
+	KeyFile  string `env:"BIE_KEY_FILE" envDefault:"/etc/letsencrypt/live/bie.mlops.ninja/privkey.pem"`
 	// Logger
 	LogType  string `env:"BIE_LOG_TYPE" envDefault:"text"`
 	LogLevel string `env:"BIE_LOG_LEVEL" envDefault:"info"`
@@ -56,18 +64,30 @@ func generateSecureToken() string {
 }
 
 // Handles receiver registration
-func registerReceiver(conn net.Conn, cfg Config) {
+func registerReceiver(conn net.Conn, cfg Config, certProvider certs.Provider) {
 	defer conn.Close()
 
-	// First read opcode to ensure it's a receiver
-	buffer := make([]byte, 1)
-	_, err := conn.Read(buffer)
+	// 1. smux servcer
+	session, err := smux.Server(conn, nil)
 	if err != nil {
-		log.Println("Error reading receiver opcode:", err)
+		log.Println("Failed to create smux session:", err)
 		return
 	}
-	if buffer[0] != biewire.OpGet {
-		log.Println("Invalid receiver opcode")
+	defer session.Close()
+
+	// 2. Open auth stream
+	authStream, err := session.AcceptStream()
+	if err != nil {
+		log.Println("Failed to accept auth stream:", err)
+		return
+	}
+	defer authStream.Close()
+
+	// 3. Read auth request
+	var req biewire.ClientRequest
+	if err := biewire.ReceiveJSON(authStream, &req); err != nil {
+		log.Println("Failed to read JSON request:", err)
+		return
 	}
 
 	// Generate `SHARD-ID-XID`
@@ -75,16 +95,24 @@ func registerReceiver(conn net.Conn, cfg Config) {
 	xid := generateSecureToken()
 	token := strings.ToLower(fmt.Sprintf("%s-%s", shardID, xid))
 
-	// Send token to receiver
-	_, err = conn.Write([]byte(token + "\n"))
-	if err != nil {
-		log.Println("Error sending token:", err)
+	// Sending token to client
+	clientResponse := biewire.ClientResponse{Token: token}
+	if err := biewire.SendJSON(authStream, clientResponse); err != nil {
+		log.Println("Failed to send JSON response:", err)
 		return
 	}
 
-	// Store receiver connection
+	// 4. Open data stream
+	dataStream, err := session.OpenStream()
+	if err != nil {
+		log.Println("Failed to open data stream:", err)
+		return
+	}
+	defer dataStream.Close()
+
+	// Store raw TCP connection
 	connectionStore.Lock()
-	connectionStore.connections[token] = conn
+	connectionStore.connections[token] = dataStream
 	connectionStore.Unlock()
 
 	log.Printf("Receiver registered with token: %s\n", token)
@@ -93,26 +121,11 @@ func registerReceiver(conn net.Conn, cfg Config) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		if err := tcpConn.SetKeepAlive(true); err != nil {
-			log.Println("Failed to set keepalive:", err)
-			return
-		}
-		if err := tcpConn.SetKeepAlivePeriod(time.Second); err != nil {
-			log.Println("Failed to set keepalive period:", err)
-			return
+	for range ticker.C {
+		if session.IsClosed() {
+			break
 		}
 	}
-
-	for {
-		select {
-		case <-ticker.C:
-			if tcpConn, ok := conn.(*net.TCPConn); !ok || biewire.IsConnClosed(tcpConn) {
-				goto cleanup
-			}
-		}
-	}
-cleanup:
 
 	// When the receiver disconnects, delete the token
 	connectionStore.Lock()
@@ -191,6 +204,31 @@ func main() {
 
 	var wg sync.WaitGroup
 
+	// Create and start certificate provider
+	certProvider := certs.NewFSProvider(
+		cfg.Domain,
+		cfg.CertFile,
+		cfg.KeyFile,
+		certs.NewLoggerAdapter(logger, ctx),
+	)
+	if err := certProvider.Start(ctx); err != nil {
+		logger.ErrorContext(ctx, "Failed to start certificate provider:", err)
+		return
+	}
+	defer certProvider.Stop()
+
+	tlsConfig := &tls.Config{
+		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			// You can inspect hello.ServerName here if needed (for SNI)
+			// Load from cache, memory, file, or secret manager
+			cert := certProvider.GetCertificate() // your custom function
+			if err != nil {
+				return nil, err
+			}
+			return cert, nil
+		},
+	}
+
 	// Start two listeners - one for senders and one for receivers
 	senderListener, err := net.Listen("tcp", net.JoinHostPort("", fmt.Sprintf("%d", cfg.SenderPort)))
 	if err != nil {
@@ -199,7 +237,8 @@ func main() {
 	}
 	defer senderListener.Close()
 
-	receiverListener, err := net.Listen("tcp", net.JoinHostPort("", fmt.Sprintf("%d", cfg.ReceiverPort)))
+	// Here - multiplexer with TLS
+	receiverListener, err := tls.Listen("tcp", net.JoinHostPort("", fmt.Sprintf("%d", cfg.ReceiverPort)), tlsConfig)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to start receiver relay server:", err)
 		return
@@ -224,7 +263,7 @@ func main() {
 					}
 					return
 				}
-				go registerReceiver(conn, cfg)
+				go registerReceiver(conn, cfg, certProvider)
 			}
 		}
 	}()

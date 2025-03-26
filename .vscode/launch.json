@@ -10,7 +10,11 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/relay/main.go",
-            "env": {},
+            "env": {
+                "BIE_DOMAIN": "bie.test",
+                "BIE_CERT_FILE": "bie.test.pem",
+                "BIE_KEY_FILE": "bie.test-key.pem",
+            },
             "args": [],
             "cwd": "${workspaceFolder}"
         },

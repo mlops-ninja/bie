@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.3.3
 	github.com/charmbracelet/lipgloss v1.0.0
+	github.com/xtaci/smux v1.5.34
 	golang.org/x/sys v0.30.0
 )
 
@@ -26,5 +27,5 @@ require (
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/text v0.3.8 // indirect
+	golang.org/x/text v0.21.0 // indirect
 )
